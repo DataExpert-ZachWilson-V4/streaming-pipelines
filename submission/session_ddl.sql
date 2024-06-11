@@ -1,5 +1,5 @@
 -- DDL for creating spark_streaming_session_homework table
-CREATE OR REPLACE TABLE billyswitzer.spark_streaming_session_homework
+CREATE OR REPLACE TABLE videet.spark_streaming_session_homework
 (
     -- Unique identifier for each session
     session_id INTEGER,
