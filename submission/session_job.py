@@ -2,34 +2,31 @@ import ast
 import sys
 import requests
 import json
+import hashlib
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, lit, session_window, from_json, udf, when
-from pyspark.sql.types import StringType, IntegerType, TimestampType, StructType, StructField, MapType, DateType
+from pyspark.sql.functions import col, session_window, from_json, udf
+from pyspark.sql.types import StringType, StructType, StructField, MapType, TimestampType
 from awsglue.utils import getResolvedOptions
 from awsglue.context import GlueContext
 from awsglue.job import Job
-import hashlib
 
 # API key for geocoding - replace with your actual API key
 GEOCODING_API_KEY = 'BB699B7D0F67636D8D437563B0E1CA6C'
 
 def geocode_ip_address(ip_address):
-    """Perform geolocation lookup for the given IP address using an external API."""
+    """Perform geolocation lookup for the given IP address using an external API with error handling."""
     url = "https://api.ip2location.io"
-    response = requests.get(url, params={
-        'ip': ip_address,
-        'key': GEOCODING_API_KEY
-    })
-
-    if response.status_code != 200:
+    try:
+        response = requests.get(url, params={'ip': ip_address, 'key': GEOCODING_API_KEY})
+        response.raise_for_status()
+        data = response.json()
+        return {
+            'country': data.get('country_code', ''),
+            'state': data.get('region_name', ''),
+            'city': data.get('city_name', '')
+        }
+    except requests.exceptions.RequestException as e:
         return {'country': '', 'state': '', 'city': ''}
-
-    data = json.loads(response.text)
-    return {
-        'country': data.get('country_code', ''),
-        'state': data.get('region_name', ''),
-        'city': data.get('city_name', '')
-    }
 
 # Initialize Spark session and Glue context
 spark = SparkSession.builder.getOrCreate()
@@ -97,6 +94,7 @@ def session_id_from_hash(user_id, ip, window_start):
     return hashlib.sha256(unique_string.encode()).hexdigest()
 
 session_id_udf = udf(session_id_from_hash, StringType())
+geocode_udf = udf(geocode_ip_address, MapType(StringType(), StringType()))
 
 # Define the processing logic
 session_window_df = kafka_df \
@@ -111,14 +109,21 @@ session_window_df = kafka_df \
 
 result_df = session_window_df \
     .withColumn("session_id", session_id_udf(col("user_id"), col("ip"), col("session_window.start"))) \
-    .select(
-        col("session_id"),
-        col("session_window.start").alias("window_start"),
-        col("session_window.end").alias("window_end"),
-        col("user_id"),
-        col("ip"),
-        col("count").alias("event_count")
-    )
+    .withColumn("geolocation", geocode_udf(col("ip"))) \
+    .select("session_id", "session_window", "user_id", "ip", "geolocation.*", "count")
+
+# Select columns for the final DataFrame including geolocation details
+result_df = result_df.select(
+    col("session_id"),
+    col("session_window.start").alias("window_start"),
+    col("session_window.end").alias("window_end"),
+    col("user_id"),
+    col("ip"),
+    col("count").alias("event_count"),
+    col("geocode.country").alias("country"),
+    col("geocode.state").alias("state"),
+    col("geocode.city").alias("city")
+)
 
 # Output the stream to an Iceberg table
 query = result_df \
@@ -130,7 +135,7 @@ query = result_df \
     .toTable(args['output_table'])
 
 # Set timeout for job termination to handle long-running stream processing
-query.awaitTermination(timeout=60 * 60)  # Timeout after 1 hour to prevent infinite running
+query.awaitTermination(3600)  # Timeout after 1 hour to prevent indefinite running
 
 # End the job
 job.commit()
