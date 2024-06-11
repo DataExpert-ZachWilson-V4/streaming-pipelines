@@ -29,16 +29,13 @@ def geocode_ip_address(ip_address):
         })
         response.raise_for_status()
     except requests.RequestException as e:
-        # Log the error and return empty dict
         print(f"Error geocoding IP address {ip_address}: {e}")
-        return {}
+        return {'country': '', 'state': '', 'city': ''}
 
     data = response.json()
-    country = data.get('country_code', '')
-    state = data.get('region_name', '')
-    city = data.get('city_name', '')
+    return {'country': data.get('country_code', ''), 'state': data.get('region_name', ''), 'city': data.get('city_name', '')}
 
-    return {'country': country, 'state': state, 'city': city}
+geocode_udf = udf(geocode_ip_address, MapType(StringType(), StringType()))
 
 spark = (SparkSession.builder
          .getOrCreate())
@@ -120,6 +117,8 @@ kafka_df = (spark \
             f'org.apache.kafka.common.security.plain.PlainLoginModule required username="{kafka_key}" password="{kafka_secret}";') \
     .load()
 )
+kafka_df = kafka_df.withColumn("decoded_value", geocode_udf(col("value")))
+
 
 def decode_col(column):
     return column.decode('utf-8')
@@ -174,6 +173,4 @@ job.init(args["JOB_NAME"], args)
 # PLEASE DO NOT REMOVE TIMEOUT
 query.awaitTermination(timeout=60*60)
 # hw prompt mentioned to change it for an hour
-# havent been able to fix the code, looking for feednack submitting meanwhile for progress.
-
 
