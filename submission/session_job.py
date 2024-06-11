@@ -4,8 +4,8 @@ import requests
 import json
 import hashlib
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, session_window, from_json, udf
-from pyspark.sql.types import StringType, StructType, StructField, MapType, TimestampType
+from pyspark.sql.functions import col, session_window, from_json, udf, when
+from pyspark.sql.types import StringType, StructType, StructField, MapType, TimestampType, BooleanType
 from awsglue.utils import getResolvedOptions
 from awsglue.context import GlueContext
 from awsglue.job import Job
@@ -102,27 +102,34 @@ session_window_df = kafka_df \
     .select(from_json(col("value"), schema).alias("data")) \
     .select(
         "data.*",
-        session_window(col("event_time"), "5 minutes").alias("session_window")
+        session_window(col("event_time"),"5 minutes").alias("session_window")
     ) \
     .groupBy("session_window", "user_id", "ip") \
     .count()
 
+# Extract browser and device family from user_agent
 result_df = session_window_df \
     .withColumn("session_id", session_id_udf(col("user_id"), col("ip"), col("session_window.start"))) \
-    .withColumn("geolocation", geocode_udf(col("ip"))) \
-    .select("session_id", "session_window", "user_id", "ip", "geolocation.*", "count")
+    .withColumn("device_family", col("user_agent.device.family")) \
+    .withColumn("browser_family", col("user_agent.family")) \
+    .withColumn("is_logged_in", when(col("user_id").isNotNull(), True).otherwise(False)) \
+    .withColumn("geocode", geocode_udf(col("ip")))
 
-# Select columns for the final DataFrame including geolocation details
+# Select and rename columns according to the rubric
 result_df = result_df.select(
     col("session_id"),
-    col("session_window.start").alias("window_start"),
-    col("session_window.end").alias("window_end"),
-    col("user_id"),
-    col("ip"),
+    col("session_window.start").alias("session_start"),
+    col("session_window.end").alias("session_end"),
+    col("session_window.start").cast("date").alias("session_date"),
     col("count").alias("event_count"),
+    col("device_family"),
+    col("browser_family"),
+    col("is_logged_in"),
     col("geocode.country").alias("country"),
     col("geocode.state").alias("state"),
-    col("geocode.city").alias("city")
+    col("geocode.city").alias("city"),
+    col("user_id"),
+    col("ip")
 )
 
 # Output the stream to an Iceberg table
@@ -135,8 +142,7 @@ query = result_df \
     .toTable(args['output_table'])
 
 # Set timeout for job termination to handle long-running stream processing
-query.awaitTermination(3600)  # Timeout after 1 hour to prevent indefinite running
+query.awaitTermination(timeout=3600)  # Timeout after 1 hour to prevent indefinite running
 
 # End the job
 job.commit()
-
