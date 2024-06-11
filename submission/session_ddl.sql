@@ -2,14 +2,14 @@
 CREATE OR REPLACE TABLE videet.spark_streaming_session_homework
 (
     -- Unique identifier for each session
-    session_id INTEGER,
+    session_id INTEGER PRIMARY KEY,
 
     -- Start timestamp of the session with time zone information
-    window_start TIMESTAMP(6) WITH TIME ZONE,
+    window_start TIMESTAMP(6) WITH TIME ZONE NOT NULL,
 
     -- End timestamp of the session with time zone information
-    window_end TIMESTAMP(6) WITH TIME ZONE,
-
+    window_end TIMESTAMP(6) WITH TIME ZONE NOT NULL,
+    
     -- Count of events occurred during the session
     event_count BIGINT,
 
