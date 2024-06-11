@@ -1,5 +1,4 @@
 CREATE OR REPLACE TABLE mposada.dataexpert_sessions (
-    host STRING,
     session_id STRING,
     user_id BIGINT,
     session_start TIMESTAMP,
