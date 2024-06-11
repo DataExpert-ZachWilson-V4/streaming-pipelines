@@ -2,9 +2,8 @@ import ast
 import sys
 import requests
 import json
-import hashlib
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, lit, window, from_json, udf, count
+from pyspark.sql.functions import col, lit, hash, session_window, from_json, udf,unix_timestamp, coalesce
 from pyspark.sql.types import StringType, IntegerType, TimestampType, StructType, StructField, MapType
 from awsglue.utils import getResolvedOptions
 from awsglue.context import GlueContext
@@ -13,27 +12,26 @@ from awsglue.job import Job
 # TODO PUT YOUR API KEY HERE
 GEOCODING_API_KEY = 'C88166B4ADF1FDE7D40F9628FBAB5D91'
 
-def generate_session_id(user_id, ip, start_time):
-    # Create a unique session ID based on user_id, ip and start_time
-    data = f"{user_id}_{ip}_{start_time}"
-    return hashlib.md5(data.encode()).hexdigest()
-
-generate_session_id_udf = udf(generate_session_id, StringType())
-
 def geocode_ip_address(ip_address):
     url = "https://api.ip2location.io"
-    try:
-        response = requests.get(url, params={
-            'ip': ip_address,
-            'key': GEOCODING_API_KEY
-        })
-        response.raise_for_status()
-    except requests.RequestException as e:
-        print(f"Error geocoding IP address {ip_address}: {e}")
-        return {'country': '', 'state': '', 'city': ''}
+    response = requests.get(url, params={
+        'ip': ip_address,
+        'key': GEOCODING_API_KEY
+    })
 
-    data = response.json()
-    return {'country': data.get('country_code', ''), 'state': data.get('region_name', ''), 'city': data.get('city_name', '')}
+    if response.status_code != 200:
+        # Return empty dict if request failed
+        return {}
+
+    data = json.loads(response.text)
+
+    # Extract the country and state from the response
+    # This might change depending on the actual response structure
+    country = data.get('country_code', '')
+    state = data.get('region_name', '')
+    city = data.get('city_name', '')
+
+    return {'country': country, 'state': state, 'city': city}
 
 geocode_udf = udf(geocode_ip_address, MapType(StringType(), StringType()))
 
@@ -67,21 +65,31 @@ start_timestamp = f"{run_date}T00:00:00.000Z"
 
 # Define the schema of the Kafka message value
 schema = StructType([
-    StructField("user_id", StringType(), True),
-    StructField("ip", StringType(), True),
-    StructField("event_time", TimestampType(), True),
-    StructField("operating_system", StructType([
+    StructField("url", StringType(), True),
+    StructField("referrer", StringType(), True),
+    StructField("user_agent", StructType([
         StructField("family", StringType(), True),
         StructField("major", StringType(), True),
         StructField("minor", StringType(), True),
         StructField("patch", StringType(), True),
+        StructField("device", StructType([
+            StructField("family", StringType(), True),
+            StructField("major", StringType(), True),
+            StructField("minor", StringType(), True),
+            StructField("patch", StringType(), True),
+        ]), True),
+        StructField("os", StructType([
+            StructField("family", StringType(), True),
+            StructField("major", StringType(), True),
+            StructField("minor", StringType(), True),
+            StructField("patch", StringType(), True),
+        ]), True)
     ]), True),
-    StructField("browser", StructType([
-        StructField("family", StringType(), True),
-        StructField("major", StringType(), True),
-        StructField("minor", StringType(), True),
-        StructField("patch", StringType(), True),
-    ]), True)
+    StructField("headers", MapType(keyType=StringType(), valueType=StringType()), True),
+    StructField("host", StringType(), True),
+    StructField("ip", StringType(), True),
+    StructField("user_id", StringType(), True),
+    StructField("event_time", TimestampType(), True)
 ])
 
 
