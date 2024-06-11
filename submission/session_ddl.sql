@@ -11,7 +11,7 @@ CREATE OR REPLACE TABLE mposada.dataexpert_sessions (
     city STRING,
     browser_family STRING,
     device_family STRING,
-    is_logged_in BOOLEAN,
+    is_logged_in BOOLEAN
 )
 USING ICEBERG
 PARTITIONED BY session_date
