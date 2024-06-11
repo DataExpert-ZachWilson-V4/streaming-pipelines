@@ -4,7 +4,7 @@ import requests
 import json
 import hashlib
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, lit, window, from_json, udf
+from pyspark.sql.functions import col, lit, window, from_json, udf, count
 from pyspark.sql.types import StringType, IntegerType, TimestampType, StructType, StructField, MapType
 from awsglue.utils import getResolvedOptions
 from awsglue.context import GlueContext
@@ -22,19 +22,18 @@ generate_session_id_udf = udf(generate_session_id, StringType())
 
 def geocode_ip_address(ip_address):
     url = "https://api.ip2location.io"
-    response = requests.get(url, params={
-        'ip': ip_address,
-        'key': GEOCODING_API_KEY
-    })
-
-    if response.status_code != 200:
-        # Return empty dict if request failed
+    try:
+        response = requests.get(url, params={
+            'ip': ip_address,
+            'key': GEOCODING_API_KEY
+        })
+        response.raise_for_status()
+    except requests.RequestException as e:
+        # Log the error and return empty dict
+        print(f"Error geocoding IP address {ip_address}: {e}")
         return {}
 
-    data = json.loads(response.text)
-
-    # Extract the country and state from the response
-    # This might change depending on the actual response structure
+    data = response.json()
     country = data.get('country_code', '')
     state = data.get('region_name', '')
     city = data.get('city_name', '')
@@ -150,7 +149,7 @@ tumbling_window_df = kafka_df \
         col("value.operating_system.family").alias("operating_system"),
         col("value.browser.family").alias("browser"),
         lit(True).alias("is_logged_in"),
-        col("event_count"),
+        count("*").alias("event_count"),
         col(window(col("event_time"), "5 minute").start, "yyyy-MM-dd").alias("session_date"),
         col("window.start").alias("session_start"),
         col("window.end").alias("session_end")
@@ -174,5 +173,6 @@ job.init(args["JOB_NAME"], args)
 # stop the job after 5 minutes
 # PLEASE DO NOT REMOVE TIMEOUT
 query.awaitTermination(timeout=60*60)
+# hw prompt mentioned to change it for an hour
 
 
