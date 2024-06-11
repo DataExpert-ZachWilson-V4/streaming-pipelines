@@ -14,4 +14,4 @@ CREATE OR REPLACE TABLE mposada.dataexpert_sessions (
     is_logged_in BOOLEAN
 )
 USING ICEBERG
-PARTITIONED BY session_date
+PARTITIONED BY (session_date)
