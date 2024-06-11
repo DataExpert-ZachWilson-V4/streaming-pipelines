@@ -2,14 +2,23 @@ import ast
 import sys
 import requests
 import json
+import hashlib
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, lit, window, from_json, udf, concat_ws, min, max, count, first, when
-from pyspark.sql.types import StringType, IntegerType, TimestampType, StructType, StructField
+from pyspark.sql.functions import col, lit, window, from_json, udf
+from pyspark.sql.types import StringType, IntegerType, TimestampType, StructType, StructField, MapType
 from awsglue.utils import getResolvedOptions
 from awsglue.context import GlueContext
 from awsglue.job import Job
 
-GEOCODING_API_KEY = 'YOUR_API_KEY'  # get api key to test
+# TODO PUT YOUR API KEY HERE
+GEOCODING_API_KEY = 'C88166B4ADF1FDE7D40F9628FBAB5D91'
+
+def generate_session_id(user_id, ip, start_time):
+    # Create a unique session ID based on user_id, ip and start_time
+    data = f"{user_id}_{ip}_{start_time}"
+    return hashlib.md5(data.encode()).hexdigest()
+
+generate_session_id_udf = udf(generate_session_id, StringType())
 
 def geocode_ip_address(ip_address):
     url = "https://api.ip2location.io"
@@ -65,80 +74,21 @@ schema = StructType([
     StructField("user_id", StringType(), True),
     StructField("ip", StringType(), True),
     StructField("event_time", TimestampType(), True),
-    StructField("operating_system", StringType(), True),
-    StructField("browser", StringType(), True)
+    StructField("operating_system", StructType([
+        StructField("family", StringType(), True),
+        StructField("major", StringType(), True),
+        StructField("minor", StringType(), True),
+        StructField("patch", StringType(), True),
+    ]), True),
+    StructField("browser", StructType([
+        StructField("family", StringType(), True),
+        StructField("major", StringType(), True),
+        StructField("minor", StringType(), True),
+        StructField("patch", StringType(), True),
+    ]), True)
 ])
 
-# Function to geocode IP address
-def geocode_ip(ip):
-    try:
-        response = requests.get("https://api.ip2location.io", params={'ip': ip, 'key': GEOCODING_API_KEY})
-        if response.status_code != 200:
-            return {'country': 'Unknown', 'state': 'Unknown', 'city': 'Unknown'}
-        data = json.loads(response.text)
-        return {'country': data.get('country_code', ''), 'state': data.get('region_name', ''), 'city': data.get('city_name', '')}
-    except:
-        return {'country': 'Unknown', 'state': 'Unknown', 'city': 'Unknown'}
 
-# UDF for geocoding IP addresses
-geocode_udf = udf(geocode_ip, StructType([
-    StructField("country", StringType(), True),
-    StructField("state", StringType(), True),
-    StructField("city", StringType(), True)
-]))
-
-# Read Kafka stream
-kafka_df = spark \
-    .readStream \
-    .format("kafka") \
-    .option("kafka.bootstrap.servers", kafka_bootstrap_servers) \
-    .option("subscribe", kafka_topic) \
-    .option("startingOffsets", "earliest") \
-    .option("kafka.security.protocol", "SASL_SSL") \
-    .option("kafka.sasl.mechanism", "PLAIN") \
-    .option("kafka.sasl.jaas.config",
-            f'org.apache.kafka.common.security.plain.PlainLoginModule required username="{kafka_key}" password="{kafka_secret}";') \
-    .load()
-
-# Parse the value column as JSON
-parsed_df = kafka_df.select(from_json(col("value").cast("string"), schema).alias("data")).select("data.*")
-
-# Enrich data with geocoded location information
-enriched_df = parsed_df.withColumn("location", geocode_udf(col("ip")))
-
-# Flatten the location struct into individual columns
-final_df = enriched_df.select(
-    col("user_id"),
-    col("ip"),
-    col("event_time"),
-    col("operating_system"),
-    col("browser"),
-    col("location.city").alias("city"),
-    col("location.state").alias("state"),
-    col("location.country").alias("country")
-)
-
-# Add a session window and group by user_id and ip
-session_df = final_df \
-    .withWatermark("event_time", "5 minutes") \
-    .groupBy(window(col("event_time"), "5 minutes").alias("session_window"), col("user_id"), col("ip")) \
-    .agg(
-        col("user_id"),
-        col("ip"),
-        min("event_time").alias("session_start"),
-        max("event_time").alias("session_end"),
-        count("event_time").alias("event_count"),
-        first("city").alias("city"),
-        first("state").alias("state"),
-        first("country").alias("country"),
-        first("operating_system").alias("operating_system"),
-        first("browser").alias("browser")
-    ) \
-    .withColumn("session_id", concat_ws("_", col("user_id"), col("ip"), col("session_start"))) \
-    .withColumn("session_date", col("session_start").cast("date")) \
-    .withColumn("is_logged_in", when(col("user_id").isNotNull(), lit(True)).otherwise(lit(False)))
-
-# Create the table if it does not exist
 spark.sql(f"""
 CREATE TABLE IF NOT EXISTS {output_table} (
     session_id STRING,
@@ -157,17 +107,72 @@ CREATE TABLE IF NOT EXISTS {output_table} (
 USING ICEBERG
 """)
 
-# Write to Iceberg table
-query = session_df \
+# Read from Kafka in batch mode
+kafka_df = (spark \
+    .readStream \
+    .format("kafka") \
+    .option("kafka.bootstrap.servers", kafka_bootstrap_servers) \
+    .option("subscribe", kafka_topic) \
+    .option("startingOffsets", "latest") \
+    .option("maxOffsetsPerTrigger", 10000) \
+    .option("kafka.security.protocol", "SASL_SSL") \
+    .option("kafka.sasl.mechanism", "PLAIN") \
+    .option("kafka.sasl.jaas.config",
+            f'org.apache.kafka.common.security.plain.PlainLoginModule required username="{kafka_key}" password="{kafka_secret}";') \
+    .load()
+)
+
+def decode_col(column):
+    return column.decode('utf-8')
+
+decode_udf = udf(decode_col, StringType())
+
+geocode_schema = StructType([
+    StructField("country", StringType(), True),
+    StructField("city", StringType(), True),
+    StructField("state", StringType(), True),
+])
+
+geocode_udf = udf(geocode_ip_address, geocode_schema)
+
+tumbling_window_df = kafka_df \
+    .withColumn("decoded_value", decode_udf(col("value"))) \
+    .withColumn("value", from_json(col("decoded_value"), schema)) \
+    .withColumn("geodata", geocode_udf(col("value.ip"))) \
+    .withWatermark("event_time", "5 minutes") \
+    .groupBy(window(col("event_time"), "5 minute"), col("value.user_id"), col("value.ip")) \
+    .agg(
+        col("value.user_id").alias("user_id"),
+        col("value.ip").alias("ip"),
+        col("geodata.city").alias("city"),
+        col("geodata.state").alias("state"),
+        col("geodata.country").alias("country"),
+        col("value.operating_system.family").alias("operating_system"),
+        col("value.browser.family").alias("browser"),
+        lit(True).alias("is_logged_in"),
+        col("event_count"),
+        col(window(col("event_time"), "5 minute").start, "yyyy-MM-dd").alias("session_date"),
+        col("window.start").alias("session_start"),
+        col("window.end").alias("session_end")
+    )
+
+tumbling_window_df = tumbling_window_df.withColumn("session_id", generate_session_id_udf(col("user_id"), col("ip"), col("session_start")))
+
+query = tumbling_window_df \
     .writeStream \
     .format("iceberg") \
     .outputMode("append") \
+    .trigger(processingTime="5 seconds") \
+    .option("fanout-enabled", "true") \
     .option("checkpointLocation", checkpoint_location) \
     .toTable(output_table)
 
-# Initialize Glue job
+
 job = Job(glueContext)
 job.init(args["JOB_NAME"], args)
 
-query.awaitTermination(timeout=60*5)  # Set timeout to 1 hour
+# stop the job after 5 minutes
+# PLEASE DO NOT REMOVE TIMEOUT
+query.awaitTermination(timeout=60*60)
+
 
