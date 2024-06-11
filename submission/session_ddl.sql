@@ -1,4 +1,4 @@
-CREATE OR REPLACE TABLE mposada.dataexpert_sessions (
+CREATE TABLE IF NOT EXISTS mposada.dataexpert_sessions (
     session_id STRING,
     user_id BIGINT,
     session_start TIMESTAMP,
@@ -8,8 +8,8 @@ CREATE OR REPLACE TABLE mposada.dataexpert_sessions (
     country STRING,
     state STRING,
     city STRING,
-    browser_family STRING,
-    device_family STRING,
+    browser STRING,
+    os STRING,
     is_logged_in BOOLEAN
 )
 USING ICEBERG
