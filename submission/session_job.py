@@ -174,5 +174,6 @@ job.init(args["JOB_NAME"], args)
 # PLEASE DO NOT REMOVE TIMEOUT
 query.awaitTermination(timeout=60*60)
 # hw prompt mentioned to change it for an hour
+# havent been able to fix the code, looking for feednack submitting meanwhile for progress.
 
 
