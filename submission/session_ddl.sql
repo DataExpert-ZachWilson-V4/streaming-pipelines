@@ -13,4 +13,4 @@ CREATE OR REPLACE TABLE mposada.dataexpert_sessions (
     is_logged_in BOOLEAN, -- Whether the user was logged in
     PRIMARY KEY (session_id)
 )
-PARTITION BY DATE(session_date)
+PARTITION BY session_date
