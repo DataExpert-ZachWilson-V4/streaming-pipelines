@@ -3,15 +3,15 @@
 
 CREATE OR REPLACE TABLE shashankkongara.kafka_streaming_user_sessions_homework (
     session_id INT,  -- Unique identifier for each session, hashed from user_id, ip, and session start time
-    session_start TIMESTAMP(6) WITH TIME ZONE,  -- Start time of the session
-    session_end TIMESTAMP(6) WITH TIME ZONE,  -- End time of the session
+    window_start TIMESTAMP,  -- Start time of the session
+    window_end TIMESTAMP,  -- End time of the session
     event_count BIGINT,  -- Total number of events that occurred during the session
     start_date DATE,  -- Date when the session started
-    country_code VARCHAR,  -- Country associated with the session, based on IP geolocation
-    state_name VARCHAR,  -- State associated with the session, based on IP geolocation
-    city_name VARCHAR,  -- City associated with the session, based on IP geolocation
-    operating_system VARCHAR,  -- Operating system used during the session, logged at the family level (e.g., "Windows", "MacOS")
-    browser_type VARCHAR,  -- Browser used during the session, logged at the family level (e.g., "Chrome", "Firefox")
+    country VARCHAR,  -- Country associated with the session, based on IP geolocation
+    state VARCHAR,  -- State associated with the session, based on IP geolocation
+    city VARCHAR,  -- City associated with the session, based on IP geolocation
+    device_family VARCHAR,  -- Operating system used during the session, logged at the family level (e.g., "Windows", "MacOS")
+    browser_family VARCHAR,  -- Browser used during the session, logged at the family level (e.g., "Chrome", "Firefox")
     login_status VARCHAR  -- Status indicating whether the session was for logged-in or logged-out users
 )
 WITH (
