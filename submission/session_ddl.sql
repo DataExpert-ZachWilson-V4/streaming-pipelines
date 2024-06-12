@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS mposada.dataexpert_sessions (
+CREATE TABLE IF NOT EXISTS {output_table} (
     session_id STRING,
     user_id BIGINT,
     session_start TIMESTAMP,
