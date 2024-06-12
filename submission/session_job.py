@@ -87,7 +87,7 @@ schema = StructType([
     StructField("host", StringType(), True),
     StructField("ip", StringType(), True),
     StructField("event_time", TimestampType(), True),
-    StructField("user_id", TimestampType(), True) # added user_id
+    StructField("user_id", StringType(), True) # added user_id
 ])
 
 # added schema for my table using spark sql
@@ -155,18 +155,18 @@ by_session = tumbling_window_df.groupBy(session_window(col("timestamp"), "5 minu
                                         ) \
     .count() \
     .select(
-        hash(col("value.user_id"), col("value.ip"), col("session_window.start")).alias("session_id"), 
-        col("value.user_id").alias("user_id"),
+        hash(col("ip"), unix_timestamp("session_window.start"), coalesce(col("user_id"), lit('-'))).cast(StringType()).alias("session_id"),
+        hash(col("user_id")).alias("user_id"),
         col("session_window.start").alias("session_start"),
         col("session_window.end").alias("session_end"),
         col("session_window.start").cast("date").alias("session_date"),
         col("count").alias("event_count"),
-        col("geodata.country").alias("country"),
-        col("geodata.state").alias("state"),
-        col("geodata.city").alias("city"),
-        col("value.user_agent.family").alias("browser"),
-        col("value.user_agent.os.family").alias("os"),
-        col("value.user_id").isNotNull().alias("is_logged_in")
+        col("country").alias("country"),
+        col("state").alias("state"),
+        col("city").alias("city"),
+        col("user_agent.family").alias("browser"),
+        col("user_agent.os.family").alias("os"),
+        col("user_id").isNotNull().alias("is_logged_in")
     )
 
                 
