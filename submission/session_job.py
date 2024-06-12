@@ -115,21 +115,21 @@ session_grouped_df = session_data_df.groupBy(
     session_window(col("timestamp"), "5 minutes"),
     col("value.user_id"),
     col("value.ip"),
-    col("geo_info.country_code"),
-    col("geo_info.city_name"),
-    col("geo_info.state_name"),
+    col("geo_info.country"),
+    col("geo_info.city"),
+    col("geo_info.state"),
     col("value.user_agent")
 ).count().select(
     session_id_udf(col("user_id"), col("ip"), col("session_window.start")).alias("session_id"),
-    col("session_window.start").alias("session_start"),
-    col("session_window.end").alias("session_end"),
+    col("session_window.start").alias("window_start"),
+    col("session_window.end").alias("window_end"),
     col("count").alias("event_count"),
-    col("session_window.start").cast(DateType()).alias("start_date"),
-    col("country_code"),
-    col("state_name"),
-    col("city_name"),
-    col("user_agent.os.family").alias("operating_system"),
-    col("user_agent.family").alias("browser_type"),
+    col("session_window.start").cast(DateType()).alias("session_date"),
+    col("country"),
+    col("state"),
+    col("city"),
+    col("user_agent.os.family").alias("device_family"),
+    col("user_agent.family").alias("browser_family"),
     when(col("user_id").isNotNull(), "Logged In").otherwise("Logged Out").alias("login_status")
 )
 
