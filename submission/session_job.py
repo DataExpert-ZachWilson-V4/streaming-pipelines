@@ -3,7 +3,7 @@ import sys
 import requests
 import json
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, lit, window, from_json, udf
+from pyspark.sql.functions import col, lit, session_window, from_json, udf
 from pyspark.sql.types import StringType, IntegerType, TimestampType, StructType, StructField, MapType
 from awsglue.utils import getResolvedOptions
 from awsglue.context import GlueContext
@@ -151,14 +151,14 @@ selected_columns = decoded_df.select(
     )
 
 
-tumbling_window_df = selected_columns.groupBy(
+session_window_df = selected_columns.groupBy(
                                         col("id"),
                                         col("country"),
                                         col("state"),
                                         col("city"),
                                         col("operating_system"),
                                         col("browser"),
-                                        window(col("timestamp"), "5 minute")
+                                        session_window(col("timestamp"), "5 minute")
                                         ) \
                                         .count() \
                                         .select(
@@ -168,12 +168,12 @@ tumbling_window_df = selected_columns.groupBy(
                                             col("city"),
                                             col("operating_system"),
                                             col("browser"),
-                                            col("window.start").alias("start_time"),
-                                            col("window.end").alias("end_time"),
+                                            col("session_window.start").alias("start_time"),
+                                            col("session_window.end").alias("end_time"),
                                             col("count").cast(IntegerType()).alias("n_events")
                                         )
 # Hardcoded "logged_in" value because couldn't find user_id in data.
-query = tumbling_window_df.withColumn("logged_in", lit(False)) \
+query = session_window_df.withColumn("logged_in", lit(False)) \
     .writeStream \
     .format("iceberg") \
     .outputMode("append") \
