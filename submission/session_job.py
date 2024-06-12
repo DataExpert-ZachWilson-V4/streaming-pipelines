@@ -90,25 +90,6 @@ schema = StructType([
     StructField("event_time", TimestampType(), True)
 ])
 
-
-spark.sql(f"""
-CREATE TABLE IF NOT EXISTS {output_table} (
-  session_id STRING,
-  user_id STRING,
-  ip STRING,
-  country STRING,
-  state STRING,
-  city STRING,
-  window_start TIMESTAMP,
-  window_end TIMESTAMP,
-  event_count BIGINT,
-  os_type STRING,
-  browser STRING,
-  user_logged_in_status STRING
-)
-USING ICEBERG
-""")
-
 # Read from Kafka in batch mode
 kafka_df = (spark \
     .readStream \
@@ -137,17 +118,21 @@ geocode_schema = StructType([
 
 geocode_udf = udf(geocode_ip_address, geocode_schema)
 
+# create unique session id from user_id, ip and timestamp
 def create_session_id(user_id, ip, window_start):
     return hash(str(user_id) + ip + str(window_start))
 
+# register the udf
 session_id_hash_udf = udf(create_session_id, StringType())
 
+# extract value from kafka message
 session_window_df = kafka_df \
     .withColumn("decoded_value", decode_udf(col("value"))) \
     .withColumn("value", from_json(col("decoded_value"), schema)) \
     .withColumn("geodata", geocode_udf(col("value.ip"))) \
     .withWatermark("timestamp", "30 seconds")
 
+# group the kafka df and create sessions until 5 min of inactivity
 cnt_sessions = session_window_df.groupBy(session_window(col("timestamp"), "5 minutes"),
                                         col("value.user_id"),
                                         col("value.ip"),
@@ -175,6 +160,7 @@ cnt_sessions = session_window_df.groupBy(session_window(col("timestamp"), "5 min
 
     )
 
+# write the aggregated and formatted  dataframe to trino using spark streaming
 query = cnt_sessions \
     .writeStream \
     .format("iceberg") \
@@ -187,7 +173,7 @@ query = cnt_sessions \
 job = Job(glueContext)
 job.init(args["JOB_NAME"], args)
 
-# stop the job after 5 minutes
+# increase the timeout to 1 hour as mentioned in the read.me
 # PLEASE DO NOT REMOVE TIMEOUT
 query.awaitTermination(timeout=60*60)
 
