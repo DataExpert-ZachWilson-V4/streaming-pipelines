@@ -127,7 +127,7 @@ CREATE TABLE IF NOT EXISTS {output_table} (
     session_start TIMESTAMP,
     session_end TIMESTAMP,
     event_count BIGINT,
-    date DATE,
+    session_date DATE,
     city STRING,
     state STRING,
     country STRING,
@@ -135,7 +135,7 @@ CREATE TABLE IF NOT EXISTS {output_table} (
     browser STRING,
     is_logged_in BOOLEAN
 ) USING ICEBERG
-PARTITION BY date
+PARTITION BY session_date
 """
 spark.sql(ddl)
 
@@ -176,7 +176,7 @@ new_df = (
     kafka_df.withColumn("decoded_value", decode_udf(col("value")))
     .withColumn("value", from_json(col("decoded_value"), schema))
     .withColumn("geodata", geocode_udf(col("value.ip")))
-    .withColumn("date", to_date(col("timestamp")))
+    .withColumn("session_date", to_date(col("timestamp")))
     .withColumn("is_logged_in", col("value.user_id").isNotNull())
     .withWatermark("timestamp", "30 seconds")
 )
@@ -186,7 +186,7 @@ by_session = (
         session_window(col("timestamp"), "5 minutes"),
         col("value.user_id"),
         col("value.ip"),
-        col("date"),
+        col("session_date"),
         col("value.user_agent.os.family").alias("os"),
         col("value.user_agent.family").alias("browser"),
         col("geodata.country"),
@@ -202,7 +202,7 @@ by_session = (
         col("session_window.start").alias("session_start"),
         col("session_window.end").alias("session_end"),
         col("count").alias("event_count"),
-        col("date"),
+        col("session_date"),
         col("city"),
         col("state"),
         col("country"),

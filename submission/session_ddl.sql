@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS sarneski44638.spark_sessionization (
     session_start TIMESTAMP,
     session_end TIMESTAMP,
     event_count BIGINT,
-    date DATE,
+    session_date DATE,
     city STRING,
     state STRING,
     country STRING,
@@ -14,4 +14,4 @@ CREATE TABLE IF NOT EXISTS sarneski44638.spark_sessionization (
     is_logged_in BOOLEAN
 ) USING ICEBERG
 PARTITION BY
-    date;
+    session_date;
