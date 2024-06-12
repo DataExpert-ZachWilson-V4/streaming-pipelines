@@ -10,7 +10,7 @@ from awsglue.context import GlueContext
 from awsglue.job import Job
 
 # TODO PUT YOUR API KEY HERE
-GEOCODING_API_KEY = 'C88166B4ADF1FDE7D40F9628FBAB5D91'
+GEOCODING_API_KEY = 'C88166B4ADF1FDE7D40F9628FBAB5D91' #added my api key
 
 def geocode_ip_address(ip_address):
     url = "https://api.ip2location.io"
@@ -32,8 +32,6 @@ def geocode_ip_address(ip_address):
     city = data.get('city_name', '')
 
     return {'country': country, 'state': state, 'city': city}
-
-geocode_udf = udf(geocode_ip_address, MapType(StringType(), StringType()))
 
 spark = (SparkSession.builder
          .getOrCreate())
@@ -88,27 +86,28 @@ schema = StructType([
     StructField("headers", MapType(keyType=StringType(), valueType=StringType()), True),
     StructField("host", StringType(), True),
     StructField("ip", StringType(), True),
-    StructField("user_id", StringType(), True),
-    StructField("event_time", TimestampType(), True)
+    StructField("event_time", TimestampType(), True),
+    StructField("user_id", TimestampType(), True) # added user_id
 ])
 
-
+# added schema for my table using spark sql
 spark.sql(f"""
 CREATE TABLE IF NOT EXISTS {output_table} (
     session_id STRING,
-    user_id STRING,
+    user_id BIGINT,
     session_start TIMESTAMP,
     session_end TIMESTAMP,
-    event_count INTEGER,
     session_date DATE,
-    city STRING,
-    state STRING,
+    event_count BIGINT,
     country STRING,
-    operating_system STRING,
+    state STRING,
+    city STRING,
     browser STRING,
+    os STRING,
     is_logged_in BOOLEAN
 )
 USING ICEBERG
+PARTITIONED BY (session_date)
 """)
 
 # Read from Kafka in batch mode
@@ -125,7 +124,6 @@ kafka_df = (spark \
             f'org.apache.kafka.common.security.plain.PlainLoginModule required username="{kafka_key}" password="{kafka_secret}";') \
     .load()
 )
-kafka_df = kafka_df.withColumn("decoded_value", geocode_udf(col("value")))
 
 
 def decode_col(column):
@@ -145,26 +143,36 @@ tumbling_window_df = kafka_df \
     .withColumn("decoded_value", decode_udf(col("value"))) \
     .withColumn("value", from_json(col("decoded_value"), schema)) \
     .withColumn("geodata", geocode_udf(col("value.ip"))) \
-    .withWatermark("event_time", "5 minutes") \
-    .groupBy(window(col("event_time"), "5 minute"), col("value.user_id"), col("value.ip")) \
-    .agg(
+    .withWatermark("timestamp", "30 seconds")
+
+by_session = tumbling_window_df.groupBy(session_window(col("timestamp"), "5 minutes"),
+                                        col("value.ip"),
+                                        col("value.user_id"),
+                                        col("geodata.country"),
+                                        col("geodata.state"),
+                                        col("geodata.city"),
+                                        col("value.user_agent")
+                                        ) \
+    .count() \
+    .select(
+        hash(col("value.user_id"), col("value.ip"), col("session_window.start")).alias("session_id"), 
         col("value.user_id").alias("user_id"),
-        col("value.ip").alias("ip"),
-        col("geodata.city").alias("city"),
-        col("geodata.state").alias("state"),
+        col("session_window.start").alias("session_start"),
+        col("session_window.end").alias("session_end"),
+        col("session_window.start").cast("date").alias("session_date"),
+        col("count").alias("event_count"),
         col("geodata.country").alias("country"),
-        col("value.operating_system.family").alias("operating_system"),
-        col("value.browser.family").alias("browser"),
-        lit(True).alias("is_logged_in"),
-        count("*").alias("event_count"),
-        col(window(col("event_time"), "5 minute").start, "yyyy-MM-dd").alias("session_date"),
-        col("window.start").alias("session_start"),
-        col("window.end").alias("session_end")
+        col("geodata.state").alias("state"),
+        col("geodata.city").alias("city"),
+        col("value.user_agent.family").alias("browser"),
+        col("value.user_agent.os.family").alias("os"),
+        col("value.user_id").isNotNull().alias("is_logged_in")
     )
 
-tumbling_window_df = tumbling_window_df.withColumn("session_id", generate_session_id_udf(col("user_id"), col("ip"), col("session_start")))
+                
 
-query = tumbling_window_df \
+
+query = by_session \
     .writeStream \
     .format("iceberg") \
     .outputMode("append") \
