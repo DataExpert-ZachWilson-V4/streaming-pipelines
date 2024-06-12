@@ -123,7 +123,7 @@ session_grouped_df = session_data_df.groupBy(
     session_id_udf(col("user_id"), col("ip"), col("session_window.start")).alias("session_id"),
     col("session_window.start").alias("session_start"),
     col("session_window.end").alias("session_end"),
-    col("count").alias("total_events"),
+    col("count").alias("event_count"),
     col("session_window.start").cast(DateType()).alias("start_date"),
     col("country_code"),
     col("state_name"),
