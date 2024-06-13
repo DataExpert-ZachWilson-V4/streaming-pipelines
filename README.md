@@ -1,6 +1,25 @@
 # Streaming Pipelines
 Homework for Week 5 Streaming Pipelines
 
+## Homework Notes
+
+This assignment is a variation on the Spark Streaming Day 2 lab, which collects web events data from the DataExpert.io site via a Kafka queue. In this assignment, web events are grouped in sessions for each user_id and ip, with a 5-minute gap (meaning 5 minutes of inactivity ends the particular session). The presence of a user_id indicates whether or not a particular website visitor is logged into the site - logging in or out by definition starts a new session. The country, state, city, and user_agent columns are included in the grouping as those fields do not vary across a single user_id/ip. 
+
+Two files are included in the submission:
+
+1. session_ddl.sql - contains the table definition for billyswitzer.spark_streaming_session_homework which holds the aggregates from each web events session
+2. session_job.py - defines the spark streaming job connecting to kafka and writing to the above table in Iceberg using session windows. The session_job.py file is derived from the kafka_spark_streaming_tumbling_window.py file that Zach used in the streaming day 2 lab.
+  - Changes are as follows:
+    - Added user_id to the schema struct to capture the user id of each session
+    - Added a session_id_from_hash_udf function which hashes the user_id, ip, and window_start values together to create a unique session_id
+    - Updated the groupBy on the aggregation of the readStream to use the session_window function with a gap duration of 5 minutes, meaning the window closes if no activity for a  paritcular user_id/ip/window_start occurs within a 5-minute window
+      - Note - I left the geodata and user_agent in the groupBy as those are derived from the user_id and ip and should thus not affect the session aggregation
+    - Added the user_id and user_agent to the groupBy clause, used user_agent to obtain browser and os, and removed unused columns
+    - Added a conditional "CASE WHEN" function for logged_in_or_out based on the presence of a user_id in the API response
+    - Updated the timeout to an hour
+
+The session_job.py is submitted to AWS Glue via the glue_job_runner.py script, as was demonstrated in the lab. This, and other associated, files are not included in the homework submission.
+
 ## Submission Guidelines
 
 To ensure smooth processing of your submissions through GitHub Classroom automation, we cannot accommodate individual requests for changes. Therefore, please read all instructions carefully.
