@@ -222,6 +222,6 @@ query = (
 job = Job(glueContext)
 job.init(args["JOB_NAME"], args)
 
-# stop the job after 5 minutes
+# stop the job after 1 hour
 # PLEASE DO NOT REMOVE TIMEOUT
 query.awaitTermination(timeout=60 * 60)
