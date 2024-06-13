@@ -99,6 +99,7 @@ CREATE TABLE IF NOT EXISTS {output_table} (
     browser STRING,
     start_time TIMESTAMP,
     end_time TIMESTAMP,
+    session_date DATE,
     n_events INTEGER,
     logged_in BOOLEAN
 )
@@ -170,6 +171,7 @@ session_window_df = selected_columns.groupBy(
                                             col("browser"),
                                             col("session_window.start").alias("start_time"),
                                             col("session_window.end").alias("end_time"),
+                                            col("window.start").cast("date").alias("session_date"),
                                             col("count").cast(IntegerType()).alias("n_events")
                                         )
 # Hardcoded "logged_in" value because couldn't find user_id in data.
