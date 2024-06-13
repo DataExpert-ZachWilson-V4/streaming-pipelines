@@ -119,7 +119,7 @@ decode_udf = udf(decode_col, StringType())
 def generate_session_string(
         ip: str,
         user_agent: Dict[str, Dict[str, str]],
-        session_start: datetime.datetime
+        session_start: datetime
     ) -> str:
     """Generates a unique session string based on the IP address, user agent, and session start time.
     """
@@ -144,7 +144,7 @@ def hash_session_string(session_string: str) -> str:
 def generate_session_id(
         ip: str,
         user_agent: Dict[str, Dict[str, str]],
-        session_start: datetime.datetime
+        session_start: datetime
     ) -> str:
     """Generates a unique session id based on a SHA-256 hashed combination of the
     IP address, user agent, and session start time.
@@ -152,7 +152,7 @@ def generate_session_id(
     Args:
         ip (str): IP address at session start (assuming it is static for the duration of the session)
         user_agent (Dict[str, Dict[str, str]]): User agent at session start
-        session_start (datetime.datetime): Session start timestamp
+        session_start (datetime): Session start timestamp
 
     Returns:
         str: Unique session id
@@ -190,8 +190,8 @@ session_aggregate_df = tumbling_window_df\
     )\
     .count()\
     .select(
-        generate_session_id_udf(col("value.ip"), col("value.user_agent"), col("window.start")).alias("session_id"),
-        when(col("value.user_id").isNull(), 0).otherwise(1).alias("is_logged_user"),
+        generate_session_id_udf(col("ip"), col("user_agent"), col("window.start")).alias("session_id"),
+        when(col("user_id").isNull(), 0).otherwise(1).alias("is_logged_user"),
         col("window.start").cast(DateType()).alias("session_start_date"),
         col("window.start").alias("session_start_ts"),
         col("window.end").alias("session_end_ts"),
@@ -218,4 +218,4 @@ job.init(args['JOB_NAME'], args)
 
 # stop the job after 5 minutes
 # PLEASE DO NOT REMOVE TIMEOUT
-write_query.awaitTermination(timeout=60*5)
+write_query.awaitTermination(timeout=60*15)
