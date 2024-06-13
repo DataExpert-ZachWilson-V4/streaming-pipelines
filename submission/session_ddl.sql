@@ -13,3 +13,5 @@ CREATE OR REPLACE TABLE deeptianievarghese22866.session_job_example (
   browser VARCHAR,
   logged_in_user_status VARCHAR
 )
+PARTITIONED BY (session_start_date)
+
