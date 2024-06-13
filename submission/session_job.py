@@ -218,4 +218,4 @@ job.init(args['JOB_NAME'], args)
 
 # stop the job after 5 minutes
 # PLEASE DO NOT REMOVE TIMEOUT
-write_query.awaitTermination(timeout=60*15)
+write_query.awaitTermination(timeout=60*60)
