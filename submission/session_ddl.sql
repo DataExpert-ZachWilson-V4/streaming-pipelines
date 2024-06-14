@@ -44,8 +44,6 @@ CREATE OR REPLACE TABLE jlcharbneau.dataexpert_sessions (
     -- Host associated with the session
     host VARCHAR
 ) WITH (
-    -- Parquet format
-    format = 'PARQUET',
-    -- Declares partitioning of the table by session_start_date for optimized queries
-    partitioning = ARRAY['session_start_date']
+    -- Declares partitioning of the table by session_date for optimized queries
+    partitioning = ARRAY['session_date']
 )
