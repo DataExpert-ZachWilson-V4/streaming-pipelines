@@ -7,7 +7,7 @@ CREATE TABLE DATA_EXPERTS_SESSIONS (
     city VARCHAR(100),
     state VARCHAR(100),
     country VARCHAR(100),
-    os VARCHAR(100),
+    device_family VARCHAR(100),
     browser_family VARCHAR(100),
     is_logged_in BOOLEAN,
     user_id VARCHAR(255)

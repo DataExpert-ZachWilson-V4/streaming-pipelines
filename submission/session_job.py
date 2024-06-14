@@ -100,7 +100,7 @@ CREATE TABLE DATA_EXPERTS_SESSIONS (
     city VARCHAR(100),
     state VARCHAR(100),
     country VARCHAR(100),
-    os VARCHAR(100),
+    device_familyVARCHAR(100),
     browser_family VARCHAR(100),
     is_logged_in BOOLEAN,
     user_id VARCHAR(255)
@@ -173,7 +173,7 @@ by_session = session_window_df \
                         col("city"),
                         col("state"),
                         col("user_agent.family").alias("browser_family"),
-                        col("user_agent.os.family").alias("os")
+                        col("user_agent.os.family").alias("device_family"),
                  )
              
              
