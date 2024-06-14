@@ -1,29 +1,20 @@
-CREATE OR REPLACE TABLE saismail.session_data (
-    "url" VARCHAR, 
-    referrer VARCHAR, 
-    user_agent ROW(
-    family VARCHAR, 
-    major VARCHAR, 
-    minor VARCHAR, 
-    patch VARCHAR, 
-    device ROW(
-        family VARCHAR, 
-        major VARCHAR, 
-        minor VARCHAR, 
-        patch VARCHAR
-    ), 
-    os ROW(
-        family VARCHAR, 
-        major VARCHAR, 
-        minor VARCHAR, 
-        patch VARCHAR
+CREATE
+OR REPLACE TABLE saismail.sessions_streaming (
+    session_id STRING,
+    user_id STRING,
+    start_session TIMESTAMP,
+    end_session TIMESTAMP,
+    start_session_date DATE,
+    event_count BIGINT,
+    country STRING,
+    state STRING,
+    city STRING,
+    os STRING,
+    browser STRING,
+    logged_in BOOLEAN
+)
+WITH
+    (
+        format = 'PARQUET',
+        partitioning = ARRAY['session_start_date']
     )
-    ), 
-    headers map(VARCHAR, VARCHAR), 
-    host VARCHAR, 
-    ip VARCHAR, 
-    event_time TIMESTAMP(6) with time zone
-)
-WITH (
-  format = 'PARQUET'
-)
