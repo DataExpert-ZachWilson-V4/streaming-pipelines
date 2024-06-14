@@ -3,7 +3,7 @@ import sys
 import requests
 import json
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, lit, window, from_json, udf
+from pyspark.sql.functions import col, lit, window, from_json, udf, hash
 from pyspark.sql.types import StringType, IntegerType, TimestampType, StructType, StructField, MapType
 from awsglue.utils import getResolvedOptions
 from awsglue.context import GlueContext
@@ -144,7 +144,7 @@ session_window_df = kafka_df \
     .withColumn("geodata", geocode_udf(col("value.ip"))) \
     .withWatermark("timestamp", "30 seconds")
 
-session_df = session_window_df.groupBy(session_window(col("timestamp"), "5 minute"),
+session_df = session_window_df.groupBy(window(col("timestamp"), "5 minute"),
                                         col("value.user_id"),
                                         col("value.ip"),
                                         col("value.user_agent"),
@@ -175,7 +175,7 @@ session_df = session_window_df.groupBy(session_window(col("timestamp"), "5 minut
         (when(col("user_id").isNotNull(), True).otherwise(False)).alias("is_logged"),
     )
 
-query = by_country \
+query = session_df \
     .writeStream \
     .format("iceberg") \
     .outputMode("append") \
