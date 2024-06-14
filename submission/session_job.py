@@ -91,21 +91,22 @@ schema = StructType([
 ])
 
 spark.sql(f"""
-CREATE TABLE IF NOT EXISTS {output_table} (
+CREATE TABLE DATA_EXPERTS_SESSIONS (
     session_id BIGINT,
-    USER_ID VARCHAR(255),
     session_start TIMESTAMP,
     session_end TIMESTAMP,
-    SESSION_DATE DATE,
-    TOTAL_EVENTS_IN_SESSION INTEGER,
-    CITY VARCHAR(100),
-    STATE VARCHAR(100),
-    COUNTRY VARCHAR(100),
-    OS VARCHAR(100),
-    BROWSER VARCHAR(100),
-    LOGGED_IN BOOLEAN
+    session_date DATE,
+    event_count INTEGER,
+    city VARCHAR(100),
+    state VARCHAR(100),
+    country VARCHAR(100),
+    os VARCHAR(100),
+    browser_family VARCHAR(100),
+    is_logged_in BOOLEAN,
+    user_id VARCHAR(255)
 )
 USING ICEBERG
+PARTITIONED BY (SESSION_DATE)
 """)
 
 # Read from Kafka in batch mode
@@ -147,6 +148,7 @@ session_window_df = kafka_df \
     .withColumn("decoded_value", decode_udf(col("value"))) \
     .withColumn("value", from_json(col("decoded_value"), schema)) \
     .withColumn("geodata", geocode_udf(col("value.ip"))) \
+    .withColumn("timestamp", col("timestamp").cast(TimestampType())) \
     .withWatermark("timestamp", "5 minutes")
 
 by_session = session_window_df \
@@ -162,14 +164,15 @@ by_session = session_window_df \
                  .select(
                         hash_udf(col("ip"), col("user_id")).alias('session_id'),
                         col('user_id'),
+                        when(col("user_id").isNull(), 0).otherwise(1).alias("is_logged_in"),
                         col('session_window.start').cast(DateType()).alias('session_date'),    
                         col('session_window.start').alias('session_start'),
                         col('session_window.end').alias('session_end'),
-                        col('count').alias('total_events_in_session'),
+                        col('count').alias('event_count'),
                         col("country"),
                         col("city"),
                         col("state"),
-                        col("user_agent.family").alias("browser"),
+                        col("user_agent.family").alias("browser_family"),
                         col("user_agent.os.family").alias("os")
                  )
              
