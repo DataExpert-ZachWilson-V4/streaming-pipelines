@@ -151,7 +151,7 @@ session_window_df = kafka_df \
 
 by_session = session_window_df \
              .groupBy(
-                 session_window(col("timestamp"), "5 minutes"),
+                 session_window("timestamp", "5 minutes"),
                  col("value.user_id"),
                  col("value.user_agent"),
                  col("value.ip"),
