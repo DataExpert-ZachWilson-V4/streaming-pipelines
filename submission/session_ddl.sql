@@ -1,6 +1,6 @@
 
-CREATE TABLE IF NOT EXISTS {output_table} (
-  id BIGINT,
+CREATE TABLE hdamerla.session_data (
+  user_id BIGINT,
   start_date TIMESTAMP,
   end_date TIMESTAMP,
   session_id STRING,
