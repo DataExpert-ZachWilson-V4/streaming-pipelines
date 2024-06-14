@@ -3,14 +3,14 @@ import sys
 import requests
 import json
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, lit, from_json, udf, coalesce, session_window, hash, date_trunc, count, min, max, first, when
-from pyspark.sql.types import StringType, IntegerType, TimestampType, StructType, StructField, MapType, BooleanType
+from pyspark.sql.functions import col, lit, from_json, udf, coalesce, session_window, hash, date_trunc, count, min, max, first, when, from_unixtime
+from pyspark.sql.types import StringType, IntegerType, TimestampType, StructType, StructField, MapType, BooleanType, DateType
 from awsglue.utils import getResolvedOptions
 from awsglue.context import GlueContext
 from awsglue.job import Job
 
 # TODO PUT YOUR API KEY HERE
-GEOCODING_API_KEY = 'q'
+GEOCODING_API_KEY = '06F2BB442BF2127FDB58A2C3CF09F2DB'
 
 def geocode_ip_address(ip_address):
     url = "https://api.ip2location.io"
@@ -86,8 +86,7 @@ schema = StructType([
     StructField("headers", MapType(keyType=StringType(), valueType=StringType()), True),
     StructField("host", StringType(), True),
     StructField("ip", StringType(), True),
-    StructField("event_time", TimestampType(), True),
-    StructField("session_id", IntegerType(), True),   
+    StructField("event_time", TimestampType(), True),  
     StructField("user_id", StringType(), True)
 ])
 
@@ -127,6 +126,12 @@ kafka_df = (spark \
 def decode_col(column):
     return column.decode('utf-8')
 
+def hash_for_session_id(ip_col, user_id_col):
+    return hash(ip_col, coalesce(user_id_col, lit("null")))
+    
+
+hash_udf = udf(hash_for_session_id, IntegerType())
+
 decode_udf = udf(decode_col, StringType())
 
 geocode_schema = StructType([
@@ -138,40 +143,36 @@ geocode_schema = StructType([
 geocode_udf = udf(geocode_ip_address, geocode_schema)
 
 
-tumbling_window_df = kafka_df \
+session_window_df = kafka_df \
     .withColumn("decoded_value", decode_udf(col("value"))) \
     .withColumn("value", from_json(col("decoded_value"), schema)) \
     .withColumn("geodata", geocode_udf(col("value.ip"))) \
     .withWatermark("timestamp", "5 minutes")
 
-by_session = tumbling_window_df.withColumn("session_id", hash(col("value.ip"), coalesce(col("value.user_id"), lit("null")))) \
-             .groupBy("session_id", session_window(col("timestamp"), "5 minutes").alias("session_window")) \
-             .agg(
-                 first("session_window.start").alias("session_start"),
-                 max(col("timestamp")).alias("session_end"),
-                 date_trunc("day", min(col("timestamp"))).alias("session_date"),
-                 count("*").alias("total_events_in_session"),
-                 first(col("geodata.city")).alias("city"),
-                first(col("geodata.state")).alias("state"),
-                first(col("geodata.country")).alias("country"),
-                first(col("value.user_agent.family")).alias("browser"),
-                first(col("value.user_agent.os.family")).alias("os"),
-                first(col("value.user_id")).alias("user_id"),
-                first(when(col("value.user_id").isNotNull(), lit(True)).otherwise(lit(False))).alias("logged_in")
-             ).select(
-        col("session_id"),
-        col("session_start"),
-        col("session_end"),
-        col("session_date"),
-        col("total_events_in_session"),
-        col("city"),
-        col("state"),
-        col("country"),
-        col("os"),
-        col("browser"),
-        col("user_id"),
-        col("logged_in")
-    )
+by_session = session_window_df \
+             .groupBy(
+                 session_window(col("timestamp"), "5 minutes"),
+                 col("value.user_id"),
+                 col("value.user_agent"),
+                 col("value.ip"),
+                 col("geodata.country"),
+                 col("geodata.city"),
+                 col("geodata.state")
+                 ).count() \
+                 .select(
+                        hash_udf(col("ip"), col("user_id")).alias('session_id'),
+                        col('user_id'),
+                        col('session_window.start').cast(DateType()).alias('session_date'),    
+                        col('session_window.start').alias('session_start'),
+                        col('session_window.end').alias('session_end'),
+                        col('count').alias('total_events_in_session'),
+                        col("country"),
+                        col("city"),
+                        col("state"),
+                        col("user_agent.family").alias("browser"),
+                        col("user_agent.os.family").alias("os")
+                 )
+             
              
 
 query = by_session \
