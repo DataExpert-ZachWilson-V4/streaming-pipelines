@@ -6,7 +6,7 @@ import sys
 import requests
 import json
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, lit, window, from_json, udf, when
+from pyspark.sql.functions import col, lit, session_window, from_json, udf, when
 from pyspark.sql.types import StringType, IntegerType, TimestampType, StructType, StructField, MapType, DateType
 from awsglue.utils import getResolvedOptions
 from awsglue.context import GlueContext
@@ -180,7 +180,7 @@ tumbling_window_df = kafka_df \
 
 session_aggregate_df = tumbling_window_df\
     .groupBy(
-        window(col("timestamp"), "5 minutes"),
+        session_window(col("timestamp"), "5 minutes"),
         "value.user_id",
         "value.user_agent",
         "value.ip",
@@ -190,11 +190,11 @@ session_aggregate_df = tumbling_window_df\
     )\
     .count()\
     .select(
-        generate_session_id_udf(col("ip"), col("user_agent"), col("window.start")).alias("session_id"),
+        generate_session_id_udf(col("ip"), col("user_agent"), col("session_window.start")).alias("session_id"),
         when(col("user_id").isNull(), 0).otherwise(1).alias("is_logged_user"),
-        col("window.start").cast(DateType()).alias("session_start_date"),
-        col("window.start").alias("session_start_ts"),
-        col("window.end").alias("session_end_ts"),
+        col("session_window.start").cast(DateType()).alias("session_start_date"),
+        col("session_window.start").alias("session_start_ts"),
+        col("session_window.end").alias("session_end_ts"),
         col("count").alias("event_count"),
         col("country"),
         col("city"),
