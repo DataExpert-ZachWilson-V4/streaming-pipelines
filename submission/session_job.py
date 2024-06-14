@@ -93,20 +93,20 @@ schema = StructType([
 spark.sql(f"""
 CREATE TABLE IF NOT EXISTS {output_table} (
   user_id BIGINT,
-  start_date TIMESTAMP,
-  end_date TIMESTAMP,
+  window_start TIMESTAMP,
+  window_end TIMESTAMP,
   session_id STRING,
-  number_of_events BIGINT,
-  session_begin_date DATE,
+  event_count BIGINT,
+  session_date DATE,
   city STRING,
   state STRING,
   country STRING,
-  operating_system STRING,
-  browser STRING,
-  is_logged BOOLEAN
+  device_family STRING,
+  browser_family STRING,
+  is_logged_in BOOLEAN
   )
     USING ICEBERG
-    partitioning by (session_begin_date)
+    partitioning by (session_date)
     
 """)
 
@@ -163,16 +163,16 @@ session_df = session_window_df.groupBy(window(col("timestamp"), "5 minute"),
         .cast("string")
         .alias("session_id"),
         col("user_id"),
-        col("session_window.start").alias("start_date"),
-        col("session_window.end").alias("end_date"),
-        col("session_window.start").cast("date").alias("session_begin_date"),
-        col("count").alias("number_of_events"),
+        col("session_window.start").alias("window_start"),
+        col("session_window.end").alias("window_end"),
+        col("session_window.start").cast("date").alias("session_date"),
+        col("count").alias("event_count"),
         col("country"),
         col("state"),
         col("city"),
-        col("user_agent.os.family").alias("operating_system"),
-        col("user_agent.family").alias("browser"),
-        (when(col("user_id").isNotNull(), True).otherwise(False)).alias("is_logged"),
+        col("user_agent.os.family").alias("device_family"),
+        col("user_agent.family").alias("browser_family"),
+        (when(col("user_id").isNotNull(), True).otherwise(False)).alias("is_logged_in"),
     )
 
 query = session_df \
