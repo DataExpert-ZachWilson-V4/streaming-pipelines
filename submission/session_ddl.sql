@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS <their_username>.dataexpert_sessions (
+CREATE TABLE IF NOT EXISTS jimmybrock65656.kafka_sessions (
   host STRING,
   session_id STRING,
   user_id BIGINT,
