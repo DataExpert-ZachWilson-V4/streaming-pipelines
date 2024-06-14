@@ -2,6 +2,15 @@
 # Streaming Pipelines
 Homework for Week 5 Streaming Pipelines
 
+## Homework Notes:
+
+I have enhanced the original code to meet the assignment requirements for tracking Data Expert sessions. First, I created a DDL script (session_ddl.sql) to define a new table shashankkongara.kafka_streaming_user_sessions_homework, which includes columns for session details such as session ID, start and end times, event count, session date, geolocation (country, state, city), device and browser information, and login status. 
+
+I have added a DDL statement in "session_ddl.sql" file to create the table which gets the data from Kafka session window.
+
+In the Spark Streaming job (session_job.py), I added Kafka configurations, implemented a function to fetch geolocation details from the ip2location API, and defined the schema for Kafka message values. I updated the job to group events into sessions with a 5-minute inactivity window and generated unique session IDs using a hash of user ID, IP, and session start time. Additionally, I enriched the session data with geolocation and device/browser details and wrote the processed data to the output table in Iceberg format, partitioned by the session start date. These changes ensure effective tracking and processing of sessions, meeting the assignment requirements.
+
+
 ## Submission Guidelines
 
 To ensure smooth processing of your submissions through GitHub Classroom automation, we cannot accommodate individual requests for changes. Therefore, please read all instructions carefully.
