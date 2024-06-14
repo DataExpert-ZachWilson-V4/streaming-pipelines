@@ -1,21 +1,21 @@
 
 CREATE TABLE hdamerla.session_data (
   user_id BIGINT,
-  start_date TIMESTAMP,
-  end_date TIMESTAMP,
+  window_start TIMESTAMP,
+  window_end TIMESTAMP,
   session_id STRING,
-  number_of_events BIGINT,
-  session_begin_date DATE,
+  event_count BIGINT,
+  session_date DATE,
   city STRING,
   state STRING,
   country STRING,
-  operating_system STRING,
-  browser STRING,
-  is_logged BOOLEAN
+  device_family STRING,
+  browser_family STRING,
+  is_logged_in BOOLEAN
   )
   WITH
   (
     format = 'PARQUET',
-    partitioning = ARRAY['session_begin_date']
+    partitioning = ARRAY['session_date']
     )
   
