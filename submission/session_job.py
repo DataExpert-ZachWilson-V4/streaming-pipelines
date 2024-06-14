@@ -19,13 +19,14 @@ from awsglue.job import Job
 # Geo API key
 GEOCODING_API_KEY = "F338A539CDFF7F219B516BB489BE4942"
 
+
 def geocode_ip_address(ip_address):
     params = {"ip": ip_address, "key": GEOCODING_API_KEY}
     url = "https://api.ip2location.io"
     response = requests.get(url, params=params)
 
     if response.status_code != 200:
-        return {} # Return empty dict for failed requests
+        return {}  # Return empty dict for failed requests
 
     data = json.loads(response.text)
 
@@ -38,15 +39,20 @@ def geocode_ip_address(ip_address):
     return {"country": country, "state": state, "city": city}
 
 
+# Create the spark session
 spark = SparkSession.builder.getOrCreate()
+# List the args
 args = getResolvedOptions(
     sys.argv,
     ["JOB_NAME", "ds", "output_table", "kafka_credentials", "checkpoint_location"],
 )
+# Extract the args
 run_date = args["ds"]
 output_table = args["output_table"]
 checkpoint_location = args["checkpoint_location"]
 kafka_credentials = ast.literal_eval(args["kafka_credentials"])
+
+# Create the glue and spark contexts
 glueContext = GlueContext(spark.sparkContext)
 spark = glueContext.spark_session
 
@@ -56,11 +62,13 @@ kafka_secret = kafka_credentials["KAFKA_WEB_TRAFFIC_SECRET"]
 kafka_bootstrap_servers = kafka_credentials["KAFKA_WEB_BOOTSTRAP_SERVER"]
 kafka_topic = kafka_credentials["KAFKA_TOPIC"]
 
+# Error checking for Kafka key. Cannot start the app if kafka creds are unavailable
 if kafka_key is None or kafka_secret is None:
     raise ValueError(
         "KAFKA_WEB_TRAFFIC_KEY and KAFKA_WEB_TRAFFIC_SECRET must be set as environment variables."
     )
 
+# Starting point
 start_timestamp = f"{run_date}T00:00:00.000Z"
 
 # Define the schema of the Kafka message value
@@ -114,7 +122,7 @@ schema = StructType(
     ]
 )
 
-
+# Run the spark sql to create the output table
 spark.sql(
     f"""
 CREATE TABLE IF NOT EXISTS {output_table} (
@@ -122,7 +130,7 @@ CREATE TABLE IF NOT EXISTS {output_table} (
   user_id STRING,
   start_session TIMESTAMP,
   end_session TIMESTAMP,
-  start_session_date DATE,
+  session_start_date DATE,
   event_count BIGINT,
   country STRING,
   state STRING,
@@ -132,7 +140,7 @@ CREATE TABLE IF NOT EXISTS {output_table} (
   is_logged BOOLEAN
 )
 USING ICEBERG
-PARTITIONED BY (start_session_date)
+PARTITIONED BY (session_start_date)
 """
 )
 
@@ -152,11 +160,11 @@ kafka_df = (
     .load()
 )
 
-
+# Helper function to decode the column with utf-8 encoding
 def decode_col(column):
     return column.decode("utf-8")
 
-
+# Helper UDF to decode column
 decode_udf = udf(decode_col, StringType())
 
 geocode_schema = StructType(
@@ -169,6 +177,7 @@ geocode_schema = StructType(
 
 geocode_udf = udf(geocode_ip_address, geocode_schema)
 
+# create the session window dataframe
 session_window_df = (
     kafka_df.withColumn("decoded_value", decode_udf(col("value")))
     .withColumn("value", from_json(col("decoded_value"), schema))
@@ -176,6 +185,7 @@ session_window_df = (
     .withWatermark("timestamp", "30 seconds")
 )
 
+# Create the aggregation
 by_session = (
     session_window_df.groupBy(
         session_window(col("timestamp"), "5 minutes"),
@@ -199,7 +209,7 @@ by_session = (
         col("user_id"),
         col("session_window.start").alias("start_session"),
         col("session_window.end").alias("end_session"),
-        col("session_window.start").cast("date").alias("start_session_date"),
+        col("session_window.start").cast("date").alias("session_start_date"),
         col("count").alias("event_count"),
         col("country"),
         col("state"),
@@ -210,6 +220,8 @@ by_session = (
     )
 )
 
+# Run the aggregration on the streaming window
+# Setup the window configs
 query = (
     by_session.writeStream.format("iceberg")
     .outputMode("append")

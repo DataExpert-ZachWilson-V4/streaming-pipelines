@@ -3,7 +3,7 @@ CREATE OR REPLACE TABLE akshayjainytl54781.dataexpert_sessions (
     user_id STRING,
     start_session TIMESTAMP,
     end_session TIMESTAMP,
-    start_session_date DATE,
+    session_start_date DATE,
     event_count BIGINT,
     country STRING,
     state STRING,
