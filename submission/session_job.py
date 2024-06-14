@@ -3,7 +3,7 @@ import sys
 import requests
 import json
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, lit, window, from_json, udf, hash
+from pyspark.sql.functions import col, lit, window, from_json, udf, hash, when
 from pyspark.sql.types import StringType, IntegerType, TimestampType, StructType, StructField, MapType
 from awsglue.utils import getResolvedOptions
 from awsglue.context import GlueContext
