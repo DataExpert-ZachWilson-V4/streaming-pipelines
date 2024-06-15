@@ -1,3 +1,4 @@
+--DDL query that creates table to track the DataExpert sessions
 
 CREATE TABLE hdamerla.session_data (
   user_id BIGINT,
