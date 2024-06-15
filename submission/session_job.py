@@ -143,7 +143,6 @@ session_window_df = kafka_df \
     .withColumn("geodata", geocode_udf(col("value.ip"))) \
     .withWatermark("timestamp", "30 seconds")
 
-# session_window_df.show()
 
 group_by_df = session_window_df.groupBy(session_window(col("timestamp"), "5 minute"), # session window with 5 mins gap
                                         col("value.user_id"),
@@ -157,11 +156,12 @@ group_by_df = session_window_df.groupBy(session_window(col("timestamp"), "5 minu
     .count() \
     .withColumn('is_user_logged',when( col('user_id').isNull() , False).otherwise(True) )\
     .withColumn('session_id', sha2(concat_ws('_', col('user_id'),col('ip'),col('session_window.start')), 256)) \
+    .withColumn("session_date", date_format(col("session_window.start"), "yyyyMMdd").cast("int")) \
     .select(
         col("session_id"),
         col("session_window.start").alias("session_window_start"),
         col("session_window.end").alias("session_window_end"),
-        col(date_format(col("session_window.start"), "yyyyMMdd").cast("int")).alias("session_date"),
+        col('session_date'),
         col("country"),
         col("state"),
         col("city"),
@@ -171,7 +171,8 @@ group_by_df = session_window_df.groupBy(session_window(col("timestamp"), "5 minu
         col("count").alias("event_count")
     ) 
 
-# TODO: CHANGE outputMode TO append
+group_by_df.show()
+
 query = group_by_df \
     .writeStream \
     .format("iceberg") \
