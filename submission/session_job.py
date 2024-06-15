@@ -144,6 +144,8 @@ session_window_df = kafka_df \
     .withColumn("geodata", geocode_udf(col("value.ip"))) \
     .withWatermark("timestamp", "30 seconds")
 
+--defining the session window a 5 minute requirement
+--grouping by user_id and ip
 session_df = session_window_df.groupBy(window(col("timestamp"), "5 minute"),
                                         col("value.user_id"),
                                         col("value.ip"),
@@ -189,5 +191,6 @@ job.init(args["JOB_NAME"], args)
 
 # stop the job after 5 minutes
 # PLEASE DO NOT REMOVE TIMEOUT
+--Adding 1 hour timeout based on HW requirement
 query.awaitTermination(timeout=60*60)
 
