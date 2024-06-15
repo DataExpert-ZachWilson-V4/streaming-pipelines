@@ -63,7 +63,7 @@ Use the `glue_job_runner.py` connectors and examples in the [airflow-dbt-project
   - If a user logs in, that creates a new session (if you group by `ip` and `user_id` that solves the problem pretty elegantly)
 
 
-### Submission Details
+# Submission Details
 
 ## Files
 - session_ddl.sql: Contains the DDL statement to create the dataexpertsessions table.
