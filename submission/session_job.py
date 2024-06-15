@@ -123,7 +123,7 @@ CREATE TABLE IF NOT EXISTS {output_table} (
     is_logged BOOLEAN
 )
 USING ICEBERG
-PARTITIONED BY (session_start_date)
+PARTITIONED BY (session_start_dt)
 """
 )
 
