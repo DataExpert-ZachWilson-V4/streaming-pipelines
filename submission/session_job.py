@@ -154,7 +154,7 @@ session_df = (tumbling_window_df.groupBy(window(col("timestamp"), "5 minutes"),
     first("value.user_agent.family").alias("browser_type"),
     count("*").alias("event_count")) \
     .select(
-        hash( coalesce(col("user_id"), col("ip"), unix_timestamp("window.start"))).cast(StringType()).alias("session_id"),
+        hash( coalesce(col("user_id"), col("ip"), unix_timestamp("window.start"))).alias("session_id"),
         col("window.start").alias("session_start_time"),
         col("window.end").alias("session_end_time"),
         col("operating_system"),
