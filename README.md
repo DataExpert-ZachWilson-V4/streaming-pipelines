@@ -61,3 +61,27 @@ Use the `glue_job_runner.py` connectors and examples in the [airflow-dbt-project
   - Create a unique identifier for each session called `session_id` (you should think about using `hash` and the necessary columns to uniquely identify the session)
   - If `user_id` is not null, that means the event is from a logged in user
   - If a user logs in, that creates a new session (if you group by `ip` and `user_id` that solves the problem pretty elegantly)
+
+
+### Submission Details
+
+## Files
+- session_ddl.sql: Contains the DDL statement to create the dataexpertsessions table.
+- session_job.py: A Spark Streaming job script that reads events from Kafka, processes them into sessions, and writes the session data to an Iceberg table.
+
+## Setup
+
+- Run the DDL Script:
+  Execute the session_ddl.sql script to create the necessary table in your database.
+
+- Run the Spark Streaming Job:
+  Execute the session_job.py script with the appropriate parameters. Ensure that the Kafka credentials and checkpoint locations are correctly configured.
+
+## Key Steps in session_job.py
+
+- Initialization: Sets up the Spark session and retrieves job parameters and Kafka credentials.
+- Schema Definition: Defines the schema for the incoming Kafka messages.
+- Auxiliary Functions: Utility functions for decoding messages, generating session IDs, and geocoding IP addresses.
+- Kafka Reading and Processing: Reads from Kafka, processes messages to group them into sessions based on a 5-minute inactivity window, and geocodes IP addresses.
+- Session Aggregation: Aggregates the events into sessions and enriches them with geolocation and user agent information.
+- Writing to Iceberg Table: Writes the processed session data to the Iceberg table with a 5-second trigger interval.
