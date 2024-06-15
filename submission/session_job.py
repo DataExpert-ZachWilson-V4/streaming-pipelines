@@ -1,3 +1,15 @@
+"""
+Write a Spark Streaming Job (session_job.py) that reads from Kafka
+
+It groups the Kafka events with a session_window with a 5-minute gap (sessions end after 5 minutes of inactivity)
+It is also grouped by user_id and ip to track each user behavior
+Make sure to increase the timeout of your job to 1 hour so you can capture real sessions
+Create a unique identifier for each session called session_id (you should think about using hash and the necessary columns to uniquely identify the session)
+If user_id is not null, that means the event is from a logged in user
+If a user logs in, that creates a new session (if you group by ip and user_id that solves the problem pretty elegantly)
+"""
+
+
 import hashlib
 import ast
 import sys
@@ -16,7 +28,6 @@ from pyspark.sql.functions import (
 )
 from pyspark.sql.types import (
     StringType,
-    IntegerType,
     TimestampType,
     StructType,
     StructField,
@@ -127,7 +138,7 @@ spark.sql(
 )
 
 # Read from Kafka in streaming mode
-kafka_df = (spark
+kafka_streaming_df = (spark
     .readStream
     .format("kafka")
     .option("kafka.bootstrap.servers", kafka_bootstrap_servers)
@@ -187,7 +198,7 @@ geocode_schema = StructType([
 geocode_udf = udf(geocode_ip_address, geocode_schema)
 
 # Process Kafka messages and aggregate into sessions
-tumbling_window_df = kafka_df \
+tumbling_window_df = kafka_streaming_df \
     .withColumn("decoded_value", decode_udf(col("value"))) \
     .withColumn("value", from_json(col("decoded_value"), schema)) \
     .withColumn("geodata", geocode_udf(col("value.ip"))) \

@@ -13,7 +13,7 @@ Whether this session is for logged in or logged out users
 
 
 CREATE OR REPLACE TABLE shruthishridhar.dataexpertsessions (
-    session_id VARCHAR, -- Unique identifier for each session
+    session_id VARCHAR PRIMARY KEY, -- Unique identifier for each session
     user_id VARCHAR, -- User identifier if an user is logged in
     start_time TIMESTAMP NOT NULL, -- Start of the session
     end_time TIMESTAMP NOT NULL, -- End of the session
