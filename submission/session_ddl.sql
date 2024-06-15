@@ -1,7 +1,7 @@
 -- DDL for creating spark_streaming_session_homework table
 CREATE OR REPLACE TABLE grisreyesrios.spark_session_streaming
 (
-    -- Unique identifier for each session
+    -- Unique identifier 
     session_id INTEGER PRIMARY KEY,
 
     -- Start timestamp of the session 
@@ -13,22 +13,22 @@ CREATE OR REPLACE TABLE grisreyesrios.spark_session_streaming
     -- Count of events occurred during the session
     event_count BIGINT,
 
-    -- The date when the session started
+    -- The date when the session starts
     session_start_date DATE,
 
-    -- Country associated with the session
+    
     country VARCHAR,
 
-    -- State associated with the session
+    
     state VARCHAR,
 
-    -- City associated with the session
+    
     city VARCHAR,
 
-    -- Operating system used in the session
+    -- Operating system used 
     os VARCHAR,
 
-    -- Browser used during the session
+    -- Browser 
     browser VARCHAR,
 
     -- Session state whether the user is logged in or out
@@ -36,9 +36,9 @@ CREATE OR REPLACE TABLE grisreyesrios.spark_session_streaming
 )
 WITH 
 (
-    -- Specifies the file format of the table
+    -- file format 
     format = 'PARQUET',
 
-    -- Declares partitioning of the table by session_start_date for optimized queries
+    -- Declares partitioning 
     partitioning = ARRAY['session_start_date']
 )
