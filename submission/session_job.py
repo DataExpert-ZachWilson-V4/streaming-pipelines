@@ -171,7 +171,6 @@ group_by_df = session_window_df.groupBy(session_window(col("timestamp"), "5 minu
         col("count").alias("event_count")
     ) 
 
-group_by_df.show()
 
 query = group_by_df \
     .writeStream \
