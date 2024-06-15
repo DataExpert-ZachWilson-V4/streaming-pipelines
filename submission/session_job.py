@@ -89,7 +89,6 @@ kafka_df = spark \
     .load()
 
 def session_id_from_hash(user_id, ip, window_start):
-    """Generate a unique session ID using SHA-256 hashing."""
     unique_string = f"{user_id}-{ip}-{window_start}"
     return hashlib.sha256(unique_string.encode()).hexdigest()
 
