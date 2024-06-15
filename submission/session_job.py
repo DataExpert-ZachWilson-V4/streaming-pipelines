@@ -9,7 +9,6 @@ from awsglue.utils import getResolvedOptions
 from awsglue.context import GlueContext
 from awsglue.job import Job
 
-# TODO PUT YOUR API KEY HERE
 GEOCODING_API_KEY = '48961B1815FE7CFB6F378E9EF03E5FE4'
 
 def geocode_ip_address(ip_address):
@@ -124,11 +123,6 @@ kafka_df = (spark \
     .load()
 )
 
-def decode_col(column):
-    return column.decode('utf-8')
-
-decode_udf = udf(decode_col, StringType())
-
 geocode_schema = StructType([
     StructField("country", StringType(), True),
     StructField("city", StringType(), True),
@@ -144,6 +138,8 @@ tumbling_window_df = kafka_df \
     .withWatermark("timestamp", "30 seconds")
 
 def generate_session_id(user_id, ip_address, window_start):
+	'''python function that generates a unique session id using
+ 		user_id, ip_address and window_start'''
     return hash(str(user_id) + ip + str(window_start))
 
 generate_session_id_udf = udf(generate_session_id, IntegerType())
