@@ -18,5 +18,6 @@ create or replace table shabab.spark_session (
 
     event_count         bigint
 ) with (
-    PARTITIONING = Array['session_date']
+    format = 'PARQUET',
+    partitioning = Array['session_date']
 )

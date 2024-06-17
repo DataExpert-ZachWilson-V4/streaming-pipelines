@@ -1,3 +1,4 @@
+import ast
 import sys
 import json
 import requests
@@ -177,7 +178,7 @@ session_window_df = (
 
 group_by_df = (
     session_window_df.groupBy(
-        session_window(col("timestamp"), "2 minute"),  # session window with 5 mins gap
+        session_window(col("timestamp"), "1 minute"),  # session window 95 seconds
         col("value.user_id"),
         col("value.ip"),
         col("value.user_agent.os.family").alias("os"),
@@ -218,5 +219,6 @@ query = (
 job = Job(glueContext)
 job.init(args["JOB_NAME"], args)
 
-# stop the job after 1 hour so we can capture real sessions
+# stop the job after 1 hour
+# PLEASE DO NOT REMOVE TIMEOUT
 query.awaitTermination(timeout=60 * 60 * 1)
