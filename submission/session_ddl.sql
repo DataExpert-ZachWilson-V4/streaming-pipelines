@@ -1,4 +1,4 @@
-CREATE TABLE luiscoelho37431.data_expert_sessions (
+CREATE TABLE IF NOT EXISTS  luiscoelho37431.data_expert_sessions (
     session_id VARCHAR,
     session_start TIMESTAMP,
     session_end TIMESTAMP,                  
