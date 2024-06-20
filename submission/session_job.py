@@ -3,7 +3,7 @@ import sys
 import requests
 import json
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, window, from_json, udf, md5, concat_ws, contains as sp_contains, to_date
+from pyspark.sql.functions import col, window, from_json, udf, count, md5, concat_ws, contains, to_date
 from pyspark.sql.types import StringType, TimestampType, StructType, StructField, MapType
 from awsglue.utils import getResolvedOptions
 from awsglue.context import GlueContext
@@ -146,36 +146,42 @@ df = kafka_df \
     .withColumn("geodata", geocode_udf(col("value.ip"))) \
     .withWatermark("timestamp", "30 seconds")
 
-by_session = df.groupBy(window(col("value.event_time"), "1 day"),
-                        col("url"),
-                        col("value.user_id"),
-                        col("value.host"),
-                        col("geodata.country"),
-                        col("geodata.city"),
-                        col("geodata.state"),
-                        col("value.user_agent.os.family"),
-                        col("value.user_agent.family")
-                                        ) \
-    .count() \
-    .select(
-        md5(
-            concat_ws('-', col("value.ip"), col("value.user_id"), col("value.url"), col("value.host"), col("window.start"), col("window.end"))
-            ).alias("session_id"),
-        col("window.start").alias("start_time"),
-        col("window.end").alias("end_time"),
-        col("count").alias("event_count"),
-        to_date("value.event_time").alias("session_start_date")
-        col("geodata.city").alias("user_city"),
-        col("geodata.state").alias("user_state"),
-        col("geodata.country").alias("user_country"),
-        col("value.user_agent.os.family").alias("user_os"),
-        col("value.user_agent.family").alias("user_browser"),
-        sp_contains(col("value.referrer"), "/login").alias("is_logged_in")
+w = df.groupBy(window(
+    col("value.url"),
+    col("value.ip"),
+    col("value.user_id"),
+    col("value.host"),
+    contains(col("value.referrer"), "/login").alias("is_logged_in"),
+    col("geodata.country").alias("user_country"),
+    col("geodata.city").alias("user_city"),
+    col("geodata.state").alias("user_state"),
+    col("value.user_agent.os.family").alias("user_os"),
+    col("value.user_agent.family").alias("user_browser")
+                                        )) \
+    .agg(
+        min(col("value.event_time")).alias("start_time"),
+        max(col("value.event_time")).alias("end_time"),
+        count("*").alias("event_count")
     )
-        
+
+session = w.select(
+        md5(
+            concat_ws('-', w.window.ip, w.window.user_id, w.window.url, w.window.host, w.window.start_time, w.window.end_time)
+            ).alias("session_id"),
+        w.window.start_time,
+        w.window.end_time,
+        w.window.event_count,
+        to_date(w.window.start_time).alias("session_start_date"),
+        w.window.user_city,
+        w.window.user_state,
+        w.window.user_country,
+        w.window.user_os,
+        w.window.user_browser,
+        w.window.is_logged_in
+    )
     
 
-query = by_session \
+query = session \
     .writeStream \
     .format("iceberg") \
     .outputMode("append") \
