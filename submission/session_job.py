@@ -3,7 +3,7 @@ import sys
 import requests
 import json
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, window, from_json, udf, count, md5, concat_ws, contains, to_date
+from pyspark.sql.functions import coalesce, length, col, lit, window, from_json, udf, count, md5, concat_ws, to_date, to_timestamp, max as sp_max, min as sp_min
 from pyspark.sql.types import StringType, TimestampType, StructType, StructField, MapType
 from awsglue.utils import getResolvedOptions
 from awsglue.context import GlueContext
@@ -34,6 +34,7 @@ def geocode_ip_address(ip_address):
     return {'country': country, 'state': state, 'city': city}
 
 spark = (SparkSession.builder
+         .config("spark.sql.iceberg.handle-timestamp-without-timezone", "true")
          .getOrCreate())
 args = getResolvedOptions(sys.argv, ["JOB_NAME",
                                      "ds",
@@ -106,7 +107,6 @@ CREATE TABLE IF NOT EXISTS {output_table} (
   is_logged_in BOOLEAN
 )
 USING ICEBERG
-PARTITIONED BY (session_start_date)
 """)
 
 # Read from Kafka in batch mode
@@ -138,47 +138,49 @@ geocode_schema = StructType([
 geocode_udf = udf(geocode_ip_address, geocode_schema)
 
 # define what logged in means to be logged in
-
-
 df = kafka_df \
     .withColumn("decoded_value", decode_udf(col("value"))) \
     .withColumn("value", from_json(col("decoded_value"), schema)) \
     .withColumn("geodata", geocode_udf(col("value.ip"))) \
-    .withWatermark("timestamp", "30 seconds")
+    .withColumn("value.event_time", to_timestamp(col("value.event_time"))) \
+    .withWatermark("timestamp", "5 minutes")
 
-w = df.groupBy(window(
+session = df.groupBy(window(col("timestamp"), "5 minutes"),
     col("value.url"),
     col("value.ip"),
     col("value.user_id"),
     col("value.host"),
-    contains(col("value.referrer"), "/login").alias("is_logged_in"),
-    col("geodata.country").alias("user_country"),
+    # attributes
     col("geodata.city").alias("user_city"),
     col("geodata.state").alias("user_state"),
+    col("geodata.country").alias("user_country"),
     col("value.user_agent.os.family").alias("user_os"),
-    col("value.user_agent.family").alias("user_browser")
-                                        )) \
+    col("value.user_agent.family").alias("user_browser"),
+    col("value.referrer").contains("/login").alias("is_logged_in")
+    ) \
     .agg(
-        min(col("value.event_time")).alias("start_time"),
-        max(col("value.event_time")).alias("end_time"),
+        to_timestamp(sp_min(col("value.event_time"))).alias("start_time"),
+        to_timestamp(sp_max(col("value.event_time"))).alias("end_time"),
         count("*").alias("event_count")
-    )
-
-session = w.select(
+    ) \
+    .filter(length(concat_ws('', col("ip"), col("user_id"), col("url"), col("host"))) > lit(0)) \
+    .select(
         md5(
-            concat_ws('-', w.window.ip, w.window.user_id, w.window.url, w.window.host, w.window.start_time, w.window.end_time)
+            concat_ws('-', col("ip"), col("user_id"), col("url"), col("host"), col("start_time"), col("end_time"))
             ).alias("session_id"),
-        w.window.start_time,
-        w.window.end_time,
-        w.window.event_count,
-        to_date(w.window.start_time).alias("session_start_date"),
-        w.window.user_city,
-        w.window.user_state,
-        w.window.user_country,
-        w.window.user_os,
-        w.window.user_browser,
-        w.window.is_logged_in
-    )
+        col("start_time"),
+        col("end_time"),
+        coalesce(col("event_count"), lit(0)).alias("event_count"),
+        to_date(col("start_time")).alias("session_start_date"),
+        col("user_city"),
+        col("user_state"),
+        col("user_country"),
+        col("user_os"),
+        col("user_browser"),
+        col("is_logged_in")
+    ) \
+    .withColumn("event_count", col("event_count").cast("integer")) \
+    #.withWatermark("start_time", "5 minutes") \
     
 
 query = session \
@@ -186,7 +188,8 @@ query = session \
     .format("iceberg") \
     .outputMode("append") \
     .trigger(processingTime="5 seconds") \
-    .option("fanout-enabled", "true") \
+    .option("fanout-enabled", "false") \
+    .option("truncate", "true") \
     .option("checkpointLocation", checkpoint_location) \
     .toTable(output_table)
 

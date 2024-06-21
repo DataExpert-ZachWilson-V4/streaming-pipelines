@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS academy.siawayforward.user_session (
+CREATE TABLE IF NOT EXISTS siawayforward.spark_streaming_session (
   session_id STRING,
   start_time TIMESTAMP,
   end_time TIMESTAMP,
@@ -12,4 +12,3 @@ CREATE TABLE IF NOT EXISTS academy.siawayforward.user_session (
   is_logged_in BOOLEAN
 )
 USING ICEBERG
-PARTITIONED BY (session_start_date)

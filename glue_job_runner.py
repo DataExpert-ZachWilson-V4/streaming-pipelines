@@ -1,5 +1,5 @@
-from submission.aws_secret_manager import get_secret
-from submission.glue_job import create_glue_job
+from aws_secret_manager import get_secret
+from glue_job import create_glue_job
 import os
 
 s3_bucket = get_secret("AWS_S3_BUCKET_TABULAR")
@@ -11,6 +11,7 @@ aws_secret_access_key = get_secret("DATAEXPERT_AWS_SECRET_ACCESS_KEY")
 kafka_credentials = get_secret("KAFKA_CREDENTIALS")
 
 def create_and_run_glue_job(job_name, script_path, arguments):
+
     create_glue_job(
         job_name=job_name,
         script_path=script_path,
@@ -26,7 +27,8 @@ def create_and_run_glue_job(job_name, script_path, arguments):
 
 
 
-local_script_path = 'submission/session_job.py'
-create_and_run_glue_job('siawayforward_streaming_pipeline_hw',
+local_script_path = './submission/session_job.py'
+
+create_and_run_glue_job('siawayforward_streaming_pipeline_hw_v2',
                         script_path=local_script_path,
-                        arguments={'--ds': '2024-06-16', '--output_table': 'siawayforward.data_expert_sessions'})
+                        arguments={'--ds': '2024-06-18', '--output_table': 'siawayforward.spark_streaming_session'})

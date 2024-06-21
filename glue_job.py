@@ -2,6 +2,7 @@ from botocore.exceptions import ClientError
 import time
 import boto3
 import json
+from upload_to_s3 import upload_to_s3
 
 def display_logs_from(paginator, run_id, log_group: str, continuation_token):
     """Mutualize iteration over the 2 different log streams glue jobs write to."""
@@ -58,6 +59,10 @@ def create_glue_job(
     kafka_credentials=None,
     **kwargs
 ):
+    script_path = upload_to_s3(script_path, s3_bucket, 'jobscripts/' + script_path)
+
+    if not script_path:
+        raise ValueError('Uploading PySpark script to S3 failed!!')
     # we check to see if you passed in any --conf parameters to override the output table
     output_table = kwargs['dag_run'].conf.get('output_table', arguments.get('--output_table', '')) if 'dag_run' in kwargs else arguments.get('--output_table', '')
     arguments['--output_table'] = output_table
