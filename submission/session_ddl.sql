@@ -8,7 +8,9 @@ CREATE TABLE IF NOT EXISTS siawayforward.spark_streaming_session (
   user_state STRING,
   user_country STRING,
   user_os STRING,
+  user_device STRING,
   user_browser STRING,
   is_logged_in BOOLEAN
 )
 USING ICEBERG
+PARTITIONED BY (session_start_date);

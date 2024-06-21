@@ -103,10 +103,12 @@ CREATE TABLE IF NOT EXISTS {output_table} (
   user_state STRING,
   user_country STRING,
   user_os STRING,
+  user_device STRING,
   user_browser STRING,
   is_logged_in BOOLEAN
 )
 USING ICEBERG
+PARTITIONED BY (session_start_date)
 """)
 
 # Read from Kafka in batch mode
@@ -145,6 +147,7 @@ df = kafka_df \
     .withColumn("value.event_time", to_timestamp(col("value.event_time"))) \
     .withWatermark("timestamp", "5 minutes")
 
+# define grouped dataframe that is unique by session
 session = df.groupBy(window(col("timestamp"), "5 minutes"),
     col("value.url"),
     col("value.ip"),
@@ -155,6 +158,7 @@ session = df.groupBy(window(col("timestamp"), "5 minutes"),
     col("geodata.state").alias("user_state"),
     col("geodata.country").alias("user_country"),
     col("value.user_agent.os.family").alias("user_os"),
+    col("value.user_agent.device.family").alias("user_device"),
     col("value.user_agent.family").alias("user_browser"),
     col("value.referrer").contains("/login").alias("is_logged_in")
     ) \
@@ -176,6 +180,7 @@ session = df.groupBy(window(col("timestamp"), "5 minutes"),
         col("user_state"),
         col("user_country"),
         col("user_os"),
+        col("user_device"),
         col("user_browser"),
         col("is_logged_in")
     ) \
